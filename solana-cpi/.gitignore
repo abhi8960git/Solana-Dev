@@ -1,0 +1,34 @@
+# Node modules
+node_modules/
+
+# Build output
+dist/
+build/
+target/
+
+# Environment files
+.env
+.env.*
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Rust artifacts (if using Anchor or Rust)
+**/target/
+Cargo.lock
+
+# Solana CLI files
+.solana/
+.wallets/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
