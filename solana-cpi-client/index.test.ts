@@ -1,5 +1,6 @@
 import { LiteSVM } from "litesvm";
 import { expect, test } from "bun:test";
+import path from "path";
 import {
 	PublicKey,
 	Transaction,
@@ -10,6 +11,9 @@ import {
 
 test("one transfer", () => {
 	const svm = new LiteSVM();
+    const ContractPubkey = Keypair.generate();
+    svm.addProgramFromFile(ContractPubkey.publicKey,path.join(__dirname,"./compile.so"));
+    svm
 	const payer = new Keypair();
 	svm.airdrop(payer.publicKey, BigInt(LAMPORTS_PER_SOL));
 	const receiver = PublicKey.unique();
