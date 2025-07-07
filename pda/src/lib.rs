@@ -37,7 +37,7 @@ fn process_instruction(
    invoke_signed(
     &ix,
     &[pda_account.clone(), user_account.clone(), system_program.clone()],
-    &[&[seeds],&[bump]], // array of bytes for seeds for PDA
+    &[&[seeds],&[bump]],
    )
 
     Ok(())

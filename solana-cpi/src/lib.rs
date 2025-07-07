@@ -4,7 +4,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 entrypoint!(process_instruction);
 #[derive(BorshDeserialize, BorshSerialize, Debug)]
 struct OnChainCounter {
-    count: u64,
+    count: u32,
 }
 
 fn process_instruction(
@@ -14,11 +14,13 @@ fn process_instruction(
 ) -> ProgramResult {
     let mut iter = accounts.iter();
     let data_account = next_account_info(&mut iter)?;
-
+    if(data_account.is_signer != true){
+        return Err((solana_program::program_error::ProgramError::MissingRequiredSignature))
+    }
     let mut counter = OnChainCounter::try_from_slice(&data_account.data.borrow())?;
     
-    counter.count += 1;
+    counter.count  = counter.count +  1;
     counter.serialize(&mut &mut data_account.data.borrow_mut()[..])?;
 
-    Ok(())
+    ProgramResult::Ok(())
 }
