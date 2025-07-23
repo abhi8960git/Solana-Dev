@@ -1,98 +1,156 @@
-import { describe, it,before } from 'node:test';
-import * as anchor from '@coral-xyz/anchor';
-import { Keypair, PublicKey } from '@solana/web3.js';
-import { BankrunProvider } from 'anchor-bankrun';
-import { startAnchor } from 'solana-bankrun';
-import type { Voting } from '../target/types/Voting';
-import assert from 'assert';
+import * as anchor from "@coral-xyz/anchor";
+import { Program, BN } from "@coral-xyz/anchor";
+import { Voting } from "../target/types/voting";
+import { PublicKey, SystemProgram } from "@solana/web3.js";
 
-const IDL = require('../target/idl/voting.json');
-const PROGRAM_ID = new PublicKey(IDL.address);
-
-let provider;
-let context;
-let program:any;
-let wallet:any ;
-
-before(async()=>{
-  context = await startAnchor('', [{ name: 'voting', programId: PROGRAM_ID }], []);
-   provider = new BankrunProvider(context);
+describe("Voting Bankrun", () => {
+  // Configure the client to use the local cluster
+  const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
-   wallet = provider.wallet as anchor.Wallet;
-   program = new anchor.Program<Voting>(IDL, provider);
-})
 
-describe('Voting Bankrun', async () => {
-  
+  const program = anchor.workspace.Voting as Program<Voting>;
+  const wallet = provider.wallet as anchor.Wallet;
 
-  it('Initializes a poll', async () => {
-    const pollId = new anchor.BN(1);
-    const description = 'Test poll';
-    const pollStart = new anchor.BN(1_000_000);
-    const pollEnd = new anchor.BN(2_000_000);
+  // ✅ Use dynamic poll ID to avoid conflicts
+  const pollId = new BN(Date.now()); // Unique poll ID each run
+  const pollDescription = "Vote for your favorite peanut butter!";
+  const pollStart = new BN(0);
+  const pollEnd = new BN(9999999999);
 
-    await program.methods
-      .initializePoll(pollId, description, pollStart, pollEnd)
-      .accounts({
-        signer: wallet.publicKey,
-      })
-      .signers([wallet.payer])
-      .rpc();
+  // Derive PDAs
+  let pollPda: PublicKey;
+  let crunchyCandidatePda: PublicKey;
+  let smoothCandidatePda: PublicKey;
 
-      const [pollAddress] = PublicKey.findProgramAddressSync(
-        [new anchor.BN(1).toArrayLike(Buffer, 'le', 8)],
-        program.programId,
-      )
+  beforeAll(async () => {
+    // Derive all PDAs
+    [pollPda] = PublicKey.findProgramAddressSync(
+      [pollId.toArrayLike(Buffer, "le", 8)],
+      program.programId
+    );
 
-      const poll = await program.account.poll.fetch(pollAddress);
-      assert(poll.pollId.toNumber() === 1); 
-      assert(poll.description === 'Test poll');
-      assert(poll.pollStart.toNumber() === 1_000_000);
-      assert(poll.pollEnd.toNumber() === 2_000_000);
-      assert(poll.candidateAmount.toNumber() === 0);
+    [crunchyCandidatePda] = PublicKey.findProgramAddressSync(
+      [pollId.toArrayLike(Buffer, "le", 8), Buffer.from("Crunchy")],
+      program.programId
+    );
+
+    [smoothCandidatePda] = PublicKey.findProgramAddressSync(
+      [pollId.toArrayLike(Buffer, "le", 8), Buffer.from("Smooth")],
+      program.programId
+    );
+
+    console.log("Poll ID:", pollId.toString());
+    console.log("Poll PDA:", pollPda.toString());
+    console.log("Crunchy Candidate PDA:", crunchyCandidatePda.toString());
+    console.log("Smooth Candidate PDA:", smoothCandidatePda.toString());
   });
 
-  
-   it("initialize candidate", async()=>{
-    await program.methods.initializeCandidate(
-      "Smooth",
-      new anchor.BN(1),
-    ).rpc();
-    await program.methods.initializeCandidate(
-      "Crunchy",
-      new anchor.BN(1),
-    ).rpc();
+  it("Initializes a poll", async () => {
+    const tx = await program.methods
+      .initializePoll(pollId, pollDescription, pollStart, pollEnd)
+      .accounts({
+        signer: wallet.publicKey,
+        poll: pollPda,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
 
-    const [crunchyAddress]= PublicKey.findProgramAddressSync(
-      [new anchor.BN(1).toArrayLike(Buffer, "le" , 8), Buffer.from("Crunchy")],
-      program.programId
-    );
-    const crunchyCandidate = await program.account.candidate.fetch(crunchyAddress);
-    assert(crunchyCandidate.candidateVotes.toNumber() === 0);
+    console.log("Initialize poll transaction signature:", tx);
 
-    const [smoothAddress]= PublicKey.findProgramAddressSync(
-      [new anchor.BN(1).toArrayLike(Buffer, "le" , 8), Buffer.from("Smooth")],
-      program.programId
-    );
-    const smoothCandidate = await program.account.candidate.fetch(smoothAddress);
-    assert(smoothCandidate.candidateVotes.toNumber() === 0);
-    console.log(crunchyCandidate);
-    console.log(smoothCandidate);
+    const pollAccount = await program.account.poll.fetch(pollPda);
+    expect(pollAccount.pollId.toString()).toBe(pollId.toString());
+    expect(pollAccount.description).toBe(pollDescription);
+    expect(pollAccount.candidateAmount.toString()).toBe("0");
+  });
 
-   });
+  it("Initialize Crunchy candidate", async () => {
+    const tx = await program.methods
+      .initializeCandidate("Crunchy", pollId)
+      .accounts({
+        signer: wallet.publicKey,
+        poll: pollPda,
+        candidate: crunchyCandidatePda,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
 
-   it("vote", async()=>{
-     await program.methods.vote(
-      new anchor.BN(1),
-      "Smooth"
-     ).rpc();
-     const [smoothAddress]= PublicKey.findProgramAddressSync(
-      [new anchor.BN(1).toArrayLike(Buffer, "le" , 8), Buffer.from("Smooth")],
-      program.programId
-    );
-    const smoothCandidate = await program.account.candidate.fetch(smoothAddress);
-    console.log("thsi is smooht candidate",smoothCandidate);
-    assert(smoothCandidate.candidateVotes.toNumber() === 1);
-   });
+    console.log("Initialize Crunchy candidate transaction signature:", tx);
 
+    const candidateAccount = await program.account.candidate.fetch(crunchyCandidatePda);
+    expect(candidateAccount.candidateName).toBe("Crunchy");
+    expect(candidateAccount.candidateVotes.toString()).toBe("0");
+
+    const pollAccount = await program.account.poll.fetch(pollPda);
+    expect(pollAccount.candidateAmount.toString()).toBe("1");
+  });
+
+  it("Initialize Smooth candidate", async () => {
+    const tx = await program.methods
+      .initializeCandidate("Smooth", pollId)
+      .accounts({
+        signer: wallet.publicKey,
+        poll: pollPda,
+        candidate: smoothCandidatePda,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    console.log("Initialize Smooth candidate transaction signature:", tx);
+
+    const candidateAccount = await program.account.candidate.fetch(smoothCandidatePda);
+    expect(candidateAccount.candidateName).toBe("Smooth");
+    expect(candidateAccount.candidateVotes.toString()).toBe("0");
+
+    const pollAccount = await program.account.poll.fetch(pollPda);
+    expect(pollAccount.candidateAmount.toString()).toBe("2");
+  });
+
+  it("Vote for Crunchy", async () => {
+    const tx = await program.methods
+      .vote(pollId, "Crunchy")
+      .accounts({
+        signer: wallet.publicKey,
+        poll: pollPda,
+        candidate: crunchyCandidatePda,
+      })
+      .rpc();
+
+    console.log("Vote for Crunchy transaction signature:", tx);
+
+    const candidateAccount = await program.account.candidate.fetch(crunchyCandidatePda);
+    expect(candidateAccount.candidateVotes.toString()).toBe("1");
+  });
+
+  it("Vote for Smooth", async () => {
+    const tx = await program.methods
+      .vote(pollId, "Smooth")
+      .accounts({
+        signer: wallet.publicKey,
+        poll: pollPda,
+        candidate: smoothCandidatePda,
+      })
+      .rpc();
+
+    console.log("Vote for Smooth transaction signature:", tx);
+
+    const candidateAccount = await program.account.candidate.fetch(smoothCandidatePda);
+    expect(candidateAccount.candidateVotes.toString()).toBe("1");
+  });
+
+  it("Fetch final poll results", async () => {
+    const pollAccount = await program.account.poll.fetch(pollPda);
+    const crunchyCandidate = await program.account.candidate.fetch(crunchyCandidatePda);
+    const smoothCandidate = await program.account.candidate.fetch(smoothCandidatePda);
+
+    console.log("=== FINAL POLL RESULTS ===");
+    console.log("Poll ID:", pollAccount.pollId.toString());
+    console.log("Description:", pollAccount.description);
+    console.log("Total Candidates:", pollAccount.candidateAmount.toString());
+    console.log("Crunchy Votes:", crunchyCandidate.candidateVotes.toString());
+    console.log("Smooth Votes:", smoothCandidate.candidateVotes.toString());
+
+    expect(pollAccount.candidateAmount.toString()).toBe("2");
+    expect(crunchyCandidate.candidateVotes.toString()).toBe("1");
+    expect(smoothCandidate.candidateVotes.toString()).toBe("1");
+  });
 });
