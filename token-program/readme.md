@@ -147,3 +147,26 @@ spl-token mint mntYg7q8... 1000
 - [Solana Faucet](https://solfaucet.com/)
 
 - [Mine_Token](https://explorer.solana.com/address/mntYg7q85LN6zsYXFeuXTYpwHkYcPGLmkob7ofXnVQF?cluster=devnet)
+
++------------------------------------------------------+
+| bosG1mwmQyMqnK72rYUcwi5YueLELNJ2qxXhgRtAKJ2.json                  |
+| (Normal Account - Wallet Keypair - you own keys)               |
+| - signs transactions and pays fees                              |
++------------------------------+--------------------------------+
+                               |
+                               | pays for creation & signs
+                               v
++------------------------------------------------------+
+| mntYg7q85LN6zsYXFeuXTYpwHkYcPGLmkob7ofXnVQF.json    |
+| (Normal Account - Mint Keypair - you own keys)                     |
+| - defines token mint (supply, decimals, authority)                |
++------------------------------+--------------------------------+
+                               |
+                               | mint address (public key only, normal acc)
+                               v
++------------------------------------------------------+
+| Associated Token Account (ATA)                        |
+| (PDA - Program Derived Address by SPL Token program) |
+| - holds token balance owned by your wallet             |
+| - no private key, owned and signed for by token program |
++------------------------------------------------------+

@@ -1,0 +1,8 @@
+mint authority : sign all the txn to mint tokens 
+
+Keypair for MintAuthority: solana-keygen grind --starts-with bos:1
+
+
+command to set config to sign all txns 
+
+solana config set --keypair json file path
