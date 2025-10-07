@@ -5,15 +5,14 @@ import {
   SystemProgram,
   Transaction
 } from "@solana/web3.js";
+import {createMemoInstruction} from "@solana/spl-memo";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, CheckCircle2, Info } from "lucide-react";
-import { TikTok_Sans } from "next/font/google";
 
 
 export default function SendSol(){
@@ -22,9 +21,11 @@ export default function SendSol(){
 
     const [recipient, setRecipient] = useState("");
   const [amountSol, setAmountSol] = useState<string>("");
+  const [memoMsg, setMemoMsg] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [signature, setSignature] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
 
   const isValidRecipient = useMemo(() => {
     try {
@@ -58,7 +59,7 @@ export default function SendSol(){
         setError("Enter a valid positive amount");
         return;
       }
-  
+
       try {
         setLoading(true);
         const toPubkey = new PublicKey(recipient.trim());
@@ -71,12 +72,22 @@ export default function SendSol(){
         throw new Error("Insufficient balance for this transfer");
       }
 
+      const transferInstruction = SystemProgram.transfer({
+        fromPubkey:publicKey,
+        toPubkey,
+        lamports
+    })
+
+    console.log("memo msg", memoMsg)
+
+    const memoInstruction = createMemoInstruction(
+      memoMsg,
+      [publicKey]
+    )
+
       const tx = new Transaction().add(
-        SystemProgram.transfer({
-            fromPubkey:publicKey,
-            toPubkey,
-            lamports
-        })
+        transferInstruction,
+        memoInstruction
       )
 
       tx.feePayer = publicKey;
@@ -101,7 +112,7 @@ export default function SendSol(){
       }finally{
         setLoading(false);
       }
-  },[publicKey, recipient, amountSol, isValidRecipient, isValidAmount, connection,sendTransaction])
+  },[publicKey, recipient, amountSol, memoMsg, isValidRecipient, isValidAmount, connection,sendTransaction])
 
 
   return(
@@ -154,6 +165,19 @@ export default function SendSol(){
               <p className="text-sm text-red-500">Enter a valid amount greater than 0</p>
             )}
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="memo" className="text-white">Memo (Optional)</Label>
+            <Input
+              id="memo"
+              type="text"
+              value={memoMsg}
+              onChange={(e) => setMemoMsg(e.target.value)}
+              placeholder="Add a message to your transaction"
+              className="bg-gray-950 border-gray-700 text-white placeholder:text-gray-500 focus:border-blue-500"
+            />
+          </div>
+
           <Button
             onClick={handleSend}
             disabled={!canSubmit}
